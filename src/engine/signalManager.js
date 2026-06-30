@@ -85,4 +85,4 @@ export function processSignal(market, candles, htfCandles, livePrice) {
     bos:        engineResult.bos ?? null,
     choch:      engineResult.choch ?? null,
   };
-        }
+}
