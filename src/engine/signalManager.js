@@ -24,7 +24,7 @@ export function processSignal(market, candles, htfCandles, livePrice) {
   const validation = validateSignal(engineResult);
 
   // Confidence scores
-  const { bullConf, bearConf } = confidenceScore(bullScore, bearScore);
+  const { bullConf, bearConf } = confidenceScore(bullScore, bearScore, 20);
 
   let signal, confidence, levels;
 
