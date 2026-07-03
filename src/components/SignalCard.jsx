@@ -78,6 +78,18 @@ export default function SignalCard({ item }) {
         <div style={{ background: C.surface, borderRadius: 4, padding: "3px 8px", fontSize: 11, color: C.muted, textAlign: "center" }}>/{item.MAX}</div>
       </div>
 
+      {item.counterTrend && (
+        <div style={{ marginTop: 6, background: C.warnDim, border: `1px solid ${C.warn}44`, borderRadius: 6, padding: "5px 10px", fontSize: 11, color: C.warn, fontWeight: 600 }}>
+          ⚠ Counter-trend signal — trade with caution
+        </div>
+      )}
+
+      {item.counterTrend && (
+        <div style={{ marginTop: 8, background: C.warnDim, border: `1px solid ${C.warn}44`, borderRadius: 6, padding: "6px 10px", fontSize: 11, color: C.warn, fontWeight: 600 }}>
+          ⚠ Counter-trend signal — higher risk, use smaller position
+        </div>
+      )}
+
       {item.tp1 && (
         <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
           {[{ l: "TP1", v: item.tp1, c: C.bull }, { l: "TP2", v: item.tp2, c: C.accent }, { l: "SL", v: item.sl, c: C.bear }, { l: "PIPS", v: item.pips, c: C.warn }].map(({ l, v, c }) => (
@@ -133,4 +145,4 @@ export default function SignalCard({ item }) {
 
     </div>
   );
-            }
+}
