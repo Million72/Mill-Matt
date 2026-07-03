@@ -24,7 +24,7 @@ export function processSignal(market, candles, htfCandles, livePrice) {
   const validation = validateSignal(engineResult);
 
   // Confidence scores
-  const { bullConf, bearConf } = confidenceScore(bullScore, bearScore, 20);
+  const { bullConf, bearConf } = confidenceScore(bullScore, bearScore);
 
   let signal, confidence, levels;
 
@@ -59,21 +59,26 @@ export function processSignal(market, candles, htfCandles, livePrice) {
     .map(s => ({ label: s.label, side: s.side || "neutral" }));
 
   return {
-    symbol:     market.symbol,
-    name:       market.name,
-    price:      +price.toFixed(dec),
+    symbol:      market.symbol,
+    name:        market.name,
+    price:       +price.toFixed(dec),
     signal,
     confidence,
+    counterTrend: validation.counterTrend ?? false,
     ...levels,
     rr,
     factors,
     bullScore,
     bearScore,
-    MAX:        20,
+    MAX:        30,
     timestamp:  new Date(),
     source:     "live",
     type:       isForex ? "forex" : "synthetic",
     // Quick stats for UI
+    trendConflict: (signal === "BUY" && engineResult.trend?.bias === "BEARISH") ||
+                   (signal === "SELL" && engineResult.trend?.bias === "BULLISH"),
+    counterTrend: (engineResult.type === "forex" && engineResult.trend?.bias === "BULLISH" && signal === "SELL") ||
+                  (engineResult.type === "forex" && engineResult.trend?.bias === "BEARISH" && signal === "BUY"),
     rsi:        engineResult.momentum?.RSI?.toFixed(1) ?? "—",
     macdDir:    engineResult.momentum?.MACD?.histogram > 0 ? "▲" : "▼",
     atr:        levels.atr ?? null,
@@ -85,4 +90,4 @@ export function processSignal(market, candles, htfCandles, livePrice) {
     bos:        engineResult.bos ?? null,
     choch:      engineResult.choch ?? null,
   };
-}
+    }
