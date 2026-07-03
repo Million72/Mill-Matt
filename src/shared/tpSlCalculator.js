@@ -1,8 +1,10 @@
 import { atr } from "../indicators/atr.js";
 
 export function calculateTPSL(candles, side, price, dec) {
-  const ATR = atr(candles);
-  if (!ATR) return { tp1: null, tp2: null, sl: null, pips: null };
+  // Need at least 15 candles for ATR
+  if (!candles || candles.length < 15) return { tp1: null, tp2: null, sl: null, pips: null, atr: null };
+  const ATR = atr(candles, 14);
+  if (!ATR || ATR === 0) return { tp1: null, tp2: null, sl: null, pips: null, atr: null };
 
   const isSyn   = dec <= 3 && price > 100;
   const isGold  = dec === 2 && price > 1000 && price < 10000;
