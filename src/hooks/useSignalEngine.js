@@ -32,7 +32,7 @@ export function useSignalEngine() {
         try {
           const data = await fetchMarket(market, tfRef.current);
           if (!data) { results[market.symbol] = { symbol: market.symbol, error: "Fetch failed" }; errs++; return; }
-          const sig = processSignal(market, data.candles, data.htfCandles, data.livePrice);
+          const sig = processSignal(market, data.candles, data.htfCandles, data.htf2Candles, data.livePrice);
           results[market.symbol] = sig;
           live++;
         } catch (e) {
