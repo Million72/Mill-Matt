@@ -59,7 +59,8 @@ export default function SignalCard({ item }) {
           </div>
           <div style={{ marginTop: 5, display: "flex", gap: 5, flexWrap: "wrap", alignItems: "center" }}>
             <Pill label={`Trend: ${item.trend}`} color={trendColor} />
-            <Pill label={`HTF: ${item.htfBias}`} color={htfColor} />
+            <Pill label={`HTF1: ${item.htfBias}`} color={htfColor} />
+            <Pill label={`HTF2: ${item.htf2Bias}`} color={item.htf2Bias === "BULL" ? C.bull : item.htf2Bias === "BEAR" ? C.bear : C.muted} />
             <Pill label={`MS: ${item.structure}`} color={msColor} />
             <span style={{ fontSize: 10, color: C.muted }}>{fmtTime(item.timestamp)}</span>
           </div>
@@ -145,4 +146,4 @@ export default function SignalCard({ item }) {
 
     </div>
   );
-}
+    }
