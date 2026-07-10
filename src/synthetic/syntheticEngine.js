@@ -12,6 +12,12 @@ import { chartPatterns }      from "./priceAction/chartPatterns.js";
 import { trendFilter }        from "./filters/trendFilter.js";
 import { momentumFilter }     from "./filters/momentumFilter.js";
 import { volatilityFilter }   from "./filters/volatilityFilter.js";
+import { marketStructure }    from "./priceAction/marketStructure.js";
+import { liquiditySweep }     from "./priceAction/liquiditySweep.js";
+import { detectBOS }          from "./priceAction/bos.js";
+import { detectCHoCH }        from "./priceAction/choch.js";
+import { detectBOR }          from "./priceAction/breakOfRange.js";
+import { detectZoneRetest }   from "./priceAction/fvgOrderBlock.js";
 
 export function runSyntheticEngine(market, candles, htfCandles) {
   const { symbol } = market;
@@ -52,24 +58,52 @@ export function runSyntheticEngine(market, candles, htfCandles) {
     add("Volatility", { side: vol.expanding ? (trend.bias === "BULLISH" ? "bull" : "bear") : "neutral", label: `Volatility ${vol.expanding ? "expanding" : "normal"}`, weight: vol.expanding ? 1 : 0 });
   }
 
-  // ── STEP 4: Pullback ─────────────────────────────────────────
+  // ── STEP 4: Market Structure ─────────────────────────────────
+  const structure = marketStructure(candles);
+  add("Market Structure", {
+    side: structure.bias === "BULLISH" ? "bull" : structure.bias === "BEARISH" ? "bear" : "neutral",
+    label: `Structure: ${structure.bias}`,
+    weight: 2,
+  });
+
+  // ── STEP 5: Liquidity Sweep ──────────────────────────────────
+  const sweep = liquiditySweep(candles, dec);
+  if (sweep) add("Liquidity Sweep", { side: sweep.side, label: sweep.label, weight: 3 });
+
+  // ── STEP 6: BOS (continuation) ───────────────────────────────
+  const bos = detectBOS(candles, structure);
+  if (bos) add("BOS", { side: bos.side, label: bos.label, weight: 3 });
+
+  // ── STEP 7: CHoCH (reversal) ─────────────────────────────────
+  const choch = detectCHoCH(candles, structure);
+  if (choch) add("CHoCH", { side: choch.side, label: choch.label, weight: 3 });
+
+  // ── STEP 8: BOR — Break of Range ─────────────────────────────
+  const bor = detectBOR(candles, dec);
+  if (bor) add("BOR", { side: bor.side, label: bor.label, weight: 2 });
+
+  // ── STEP 9: Pullback ─────────────────────────────────────────
   const pullback = detectPullback(candles, trend.bias);
   if (pullback) add("Pullback", { side: pullback.side, label: pullback.label, weight: 2 });
 
-  // ── STEP 5: Dynamic S/R ──────────────────────────────────────
+  // ── STEP 10: Dynamic S/R ──────────────────────────────────────
   const sr = dynamicSR(candles, dec);
   if (sr.nearSupport)    add("Dynamic Support",    { side: "bull", label: `Near dynamic support`,    weight: 2 });
   if (sr.nearResistance) add("Dynamic Resistance", { side: "bear", label: `Near dynamic resistance`, weight: 2 });
 
-  // ── STEP 6: Breakout ─────────────────────────────────────────
+  // ── STEP 11: Breakout ─────────────────────────────────────────
   const breakout = detectBreakout(candles, sr);
   if (breakout) add("Breakout", { side: breakout.side, label: breakout.label, weight: 3 });
 
-  // ── STEP 7: Retest ───────────────────────────────────────────
+  // ── STEP 12: Retest ───────────────────────────────────────────
   const retest = detectRetest(candles, sr);
   if (retest) add("Retest", { side: retest.side, label: retest.label, weight: 2 });
 
-  // ── STEP 8: Momentum Confirmation ───────────────────────────
+  // ── STEP 13: FVG / Order Block Retest ────────────────────────
+  const zoneRetest = detectZoneRetest(candles, dec);
+  if (zoneRetest) add("FVG/OB Retest", { side: zoneRetest.side, label: zoneRetest.label, weight: 3 });
+
+  // ── STEP 14: Momentum Confirmation ───────────────────────────
   const momentum = momentumAnalysis(candles);
   add("Momentum", {
     side:   momentum.bias === "BULL" ? "bull" : momentum.bias === "BEAR" ? "bear" : "neutral",
@@ -77,15 +111,15 @@ export function runSyntheticEngine(market, candles, htfCandles) {
     weight: 2,
   });
 
-  // ── STEP 9: Confirmation Candle ──────────────────────────────
+  // ── STEP 15: Confirmation Candle ──────────────────────────────
   const cp = candlestickPatterns(candles);
   cp.forEach(p => add("Candlestick", { side: p.side, label: `PA: ${p.name}`, weight: p.strength }));
 
-  // ── STEP 10: Chart Patterns ──────────────────────────────────
+  // ── STEP 16: Chart Patterns ──────────────────────────────────
   const charts = chartPatterns(candles, dec);
   charts.forEach(p => add("Chart Pattern", { side: p.side, label: `📊 ${p.name}`, weight: p.strength }));
 
-  // ── STEP 11: HTF confirmation ────────────────────────────────
+  // ── STEP 17: HTF confirmation ────────────────────────────────
   if (htfCandles && htfCandles.length >= 21) {
     const htfTrend = trendAnalysis(htfCandles);
     if (htfTrend.bias === "BULLISH") add("HTF", { side: "bull", label: "HTF Bullish", weight: 2 });
@@ -102,6 +136,12 @@ export function runSyntheticEngine(market, candles, htfCandles) {
     momentum,
     vol,
     regime,
+    structure,
+    sweep,
+    bos,
+    choch,
+    bor,
+    zoneRetest,
     sr,
     breakout,
     retest,
@@ -109,4 +149,4 @@ export function runSyntheticEngine(market, candles, htfCandles) {
     dec,
     price,
   };
-                           }
+}
