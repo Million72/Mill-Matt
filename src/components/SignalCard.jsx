@@ -130,6 +130,16 @@ export default function SignalCard({ item }) {
           🚀 {item.breakout.label}
         </div>
       )}
+      {item.bor && (
+        <div style={{ marginTop: 6, background: item.bor.side === "bull" ? C.bullDim : C.bearDim, borderRadius: 6, padding: "6px 10px", fontSize: 11, color: item.bor.side === "bull" ? C.bull : C.bear, fontWeight: 600 }}>
+          📦 {item.bor.label}
+        </div>
+      )}
+      {item.zoneRetest && (
+        <div style={{ marginTop: 6, background: item.zoneRetest.side === "bull" ? C.bullDim : C.bearDim, borderRadius: 6, padding: "6px 10px", fontSize: 11, color: item.zoneRetest.side === "bull" ? C.bull : C.bear, fontWeight: 600 }}>
+          🎯 {item.zoneRetest.label}
+        </div>
+      )}
 
       <button onClick={() => setShowFactors(f => !f)} style={{ marginTop: 10, background: "none", border: "none", color: C.accent, fontSize: 12, padding: 0, cursor: "pointer" }}>
         {showFactors ? "▲ Hide" : "▼ Show"} all factors ({item.factors?.length ?? 0})
@@ -146,4 +156,4 @@ export default function SignalCard({ item }) {
 
     </div>
   );
-    }
+              }
