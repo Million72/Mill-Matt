@@ -139,5 +139,7 @@ export function processSignal(market, candles, htfCandles, htf2Candles, livePric
     breakout:    engineResult.breakout ?? null,
     bos:         engineResult.bos ?? null,
     choch:       engineResult.choch ?? null,
+    bor:         engineResult.bor ?? null,
+    zoneRetest:  engineResult.zoneRetest ?? null,
   };
-}
+    }
