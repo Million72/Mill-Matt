@@ -19,6 +19,21 @@ import { detectCHoCH }        from "./priceAction/choch.js";
 import { detectBOR }          from "./priceAction/breakOfRange.js";
 import { detectZoneRetest }   from "./priceAction/fvgOrderBlock.js";
 
+// Lightweight ATR estimate used only to decide whether BOS and Breakout are
+// reporting the same underlying price event (see STEP 11 below). Not the
+// same as the full indicators/atr.js used for TP/SL sizing — this is a
+// cheap local proxy, sufficient for a "same level or not" distance check.
+function atrEstimate(candles, period = 14) {
+  if (candles.length < period + 1) return null;
+  const slice = candles.slice(-period - 1);
+  let sum = 0;
+  for (let i = 1; i < slice.length; i++) {
+    const c = slice[i], p = slice[i - 1];
+    sum += Math.max(c.high - c.low, Math.abs(c.high - p.close), Math.abs(c.low - p.close));
+  }
+  return sum / (slice.length - 1);
+}
+
 export function runSyntheticEngine(market, candles, htfCandles) {
   const { symbol } = market;
   const price   = candles[candles.length - 1].close;
@@ -93,7 +108,27 @@ export function runSyntheticEngine(market, candles, htfCandles) {
 
   // ── STEP 11: Breakout ─────────────────────────────────────────
   const breakout = detectBreakout(candles, sr);
-  if (breakout) add("Breakout", { side: breakout.side, label: breakout.label, weight: 3 });
+  if (breakout) {
+    // BOS and Breakout can fire off effectively the same event — a swing
+    // high (structure.lastHigh) and dynamic resistance (sr.resistance) are
+    // frequently the same or near-identical price level on a sharp move,
+    // meaning both detectors are reporting ONE real observation as if it
+    // were two independent confirmations. Without this check, a single
+    // spike candle could silently double-count toward the score.
+    //
+    // We treat them as the same event when their levels are within 1x ATR
+    // of each other, and in that case Breakout only adds a small confluence
+    // bonus on top of BOS's score rather than its own full weight.
+    const breakoutLevel = breakout.side === "bull" ? sr.resistance : sr.support;
+    const sameEventAsBOS = bos && bos.side === breakout.side &&
+      Math.abs((bos.level ?? 0) - (breakoutLevel ?? 0)) <= (atrEstimate(candles) || Infinity);
+
+    if (sameEventAsBOS) {
+      add("Breakout", { side: breakout.side, label: `${breakout.label} (same event as BOS — confluence only)`, weight: 1 });
+    } else {
+      add("Breakout", { side: breakout.side, label: breakout.label, weight: 3 });
+    }
+  }
 
   // ── STEP 12: Retest ───────────────────────────────────────────
   const retest = detectRetest(candles, sr);
