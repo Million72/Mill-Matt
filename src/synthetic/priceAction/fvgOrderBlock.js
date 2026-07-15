@@ -58,12 +58,17 @@ function detectOrderBlocks(candles, dec) {
 // recently-formed FVG or Order Block zone — treated as a potential
 // continuation entry in the zone's implied direction, since price returning
 // to "fill" these zones and then continuing is the standard expected behavior.
+//
+// Two safeguards prevent this from matching stale, irrelevant zones:
+//  1. Distance check — a zone far from current price (relative to recent
+//     volatility) isn't a "retest" no matter how recently it formed; price
+//     has simply moved on.
+//  2. The zone must be tested by the LATEST candle specifically, not by any
+//     candle within the lookback window, since we only care whether price
+//     is retesting it RIGHT NOW.
 export function detectZoneRetest(candles, dec = 3) {
   if (candles.length < 15) return null;
 
-  // Only look at zones formed in the recent past (last 30 candles) — an
-  // FVG/Order Block from 200 candles ago is stale and not meaningfully
-  // "retestable" anymore.
   const recentStart = Math.max(0, candles.length - 30);
   const recentCandles = candles.slice(recentStart);
 
@@ -75,17 +80,36 @@ export function detectZoneRetest(candles, dec = 3) {
 
   const last = candles[candles.length - 1];
 
-  // Check the most recent zones first (closer to "now" = more relevant).
+  // Establish a relevance distance from recent volatility (ATR-style, using
+  // the last 14 candles' true range) so "nearby" scales with how much this
+  // instrument typically moves, rather than a fixed price-unit threshold
+  // that would be meaningless across wildly different-priced synthetics.
+  const atrWindow = candles.slice(-15);
+  let atrSum = 0;
+  for (let i = 1; i < atrWindow.length; i++) {
+    const c = atrWindow[i], p = atrWindow[i - 1];
+    atrSum += Math.max(c.high - c.low, Math.abs(c.high - p.close), Math.abs(c.low - p.close));
+  }
+  const atr = atrSum / Math.max(atrWindow.length - 1, 1);
+  const maxRelevantDistance = atr * 3; // zone must be within ~3x ATR of current price to count as "retestable"
+
   const sorted = zones.sort((a, b) => b.index - a.index);
 
   for (const zone of sorted) {
     const inZone = last.low <= zone.top && last.high >= zone.bottom;
-    if (inZone) {
-      const label = zone.type === "FVG"
-        ? `${zone.side === "bull" ? "Bullish" : "Bearish"} FVG retest (${zone.bottom.toFixed(dec)}-${zone.top.toFixed(dec)})`
-        : `${zone.side === "bull" ? "Bullish" : "Bearish"} Order Block retest (${zone.bottom.toFixed(dec)}-${zone.top.toFixed(dec)})`;
-      return { side: zone.side, type: zone.type, label };
-    }
+    if (!inZone) continue;
+
+    // Distance from current close to the near edge of the zone — even when
+    // "inZone" is technically true, confirm the zone itself isn't absurdly
+    // wide/stale relative to current volatility.
+    const zoneMid = (zone.top + zone.bottom) / 2;
+    const distance = Math.abs(last.close - zoneMid);
+    if (distance > maxRelevantDistance) continue;
+
+    const label = zone.type === "FVG"
+      ? `${zone.side === "bull" ? "Bullish" : "Bearish"} FVG retest (${zone.bottom.toFixed(dec)}-${zone.top.toFixed(dec)})`
+      : `${zone.side === "bull" ? "Bullish" : "Bearish"} Order Block retest (${zone.bottom.toFixed(dec)}-${zone.top.toFixed(dec)})`;
+    return { side: zone.side, type: zone.type, label };
   }
   return null;
 }
