@@ -4,6 +4,18 @@ import { FOREX, SYNTHETICS }             from "../constants/markets.js";
 import { BATCH_SIZE, BATCH_DELAY_MS, REFRESH_SECONDS } from "../constants/timeframes.js";
 import { delay }                         from "../utils/helpers.js";
 
+// Anti-repainting: once a BUY/SELL signal fires on a specific closed candle,
+// it is recorded here permanently, keyed by symbol+timeframe+candle time.
+// A later scan re-analyzing the (now different, since more candles have
+// closed) data can produce a NEW signal, but it can never silently erase or
+// alter what was actually shown for that earlier candle. The dashboard can
+// therefore always distinguish "what the engine says right now" from
+// "what it actually called, historically" — those are no longer the same
+// mutable object.
+function historyKey(symbol, tf, candleTime) {
+  return `${symbol}|${tf}|${candleTime}`;
+}
+
 export function useSignalEngine() {
   const [signals,   setSignals]   = useState({});
   const [scanning,  setScanning]  = useState(false);
@@ -15,6 +27,7 @@ export function useSignalEngine() {
   const countRef    = useRef(REFRESH_SECONDS);
   const tfRef       = useRef("1h");
   const prevSignals = useRef({});
+  const lockedHistory = useRef({}); // historyKey -> frozen signal, never mutated once written
 
   const scanAll = useCallback(async (tf, fetchMarket) => {
     tfRef.current    = tf || tfRef.current;
@@ -33,6 +46,23 @@ export function useSignalEngine() {
           const data = await fetchMarket(market, tfRef.current);
           if (!data) { results[market.symbol] = { symbol: market.symbol, error: "Fetch failed" }; errs++; return; }
           const sig = processSignal(market, data.candles, data.htfCandles, data.htf2Candles, data.livePrice);
+
+          // The last candle in `data.candles` is now guaranteed CLOSED
+          // (deriv.js strips the forming one) — so it's a stable, fixed
+          // point in time we can safely key a lock on.
+          const lastCandle = data.candles[data.candles.length - 1];
+          const candleTime = lastCandle ? lastCandle.time : null;
+
+          if (sig.signal === "BUY" || sig.signal === "SELL") {
+            const key = historyKey(market.symbol, tfRef.current, candleTime);
+            if (!lockedHistory.current[key]) {
+              // First time this exact closed candle produced this signal —
+              // lock it in. All fields are frozen at this moment; nothing
+              // later can rewrite what was shown here.
+              lockedHistory.current[key] = { ...sig, timeframe: tfRef.current, lockedAt: new Date(), candleTime };
+            }
+          }
+
           results[market.symbol] = sig;
           live++;
         } catch (e) {
@@ -53,5 +83,11 @@ export function useSignalEngine() {
     setScanning(false);
   }, [signals]);
 
-  return { signals, scanning, lastScan, countdown, setCountdown, countRef, stats, errCount, liveCount, scanAll, tfRef };
+  // Returns the locked, immutable signal history — safe to display as "what
+  // actually fired," independent of whatever the live re-scan currently shows.
+  const getLockedHistory = useCallback(() => {
+    return Object.values(lockedHistory.current).sort((a, b) => b.candleTime - a.candleTime);
+  }, []);
+
+  return { signals, scanning, lastScan, countdown, setCountdown, countRef, stats, errCount, liveCount, scanAll, tfRef, getLockedHistory };
 }
