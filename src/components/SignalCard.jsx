@@ -140,6 +140,15 @@ export default function SignalCard({ item }) {
           🎯 {item.zoneRetest.label}
         </div>
       )}
+      {item.entryModels?.length > 0 && (
+        <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 5 }}>
+          {item.entryModels.map((m, i) => (
+            <div key={i} style={{ background: C.gold + "22", border: `1px solid ${C.gold}55`, borderRadius: 6, padding: "6px 10px" }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: C.gold }}>⭐ {m.label}</span>
+            </div>
+          ))}
+        </div>
+      )}
 
       <button onClick={() => setShowFactors(f => !f)} style={{ marginTop: 10, background: "none", border: "none", color: C.accent, fontSize: 12, padding: 0, cursor: "pointer" }}>
         {showFactors ? "▲ Hide" : "▼ Show"} all factors ({item.factors?.length ?? 0})
@@ -156,4 +165,4 @@ export default function SignalCard({ item }) {
 
     </div>
   );
-              }
+      }
