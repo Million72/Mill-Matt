@@ -22,14 +22,17 @@ function biasFromCandles(candles) {
   return "NEUTRAL";
 }
 
-export function processSignal(market, candles, htfCandles, htf2Candles, livePrice) {
+export function processSignal(market, candles, htfCandles, htf2Candles, livePrice, partnerCandles = null) {
   const isForex = FOREX.some(f => f.symbol === market.symbol);
   const price   = livePrice ?? candles[candles.length - 1].close;
   const dec     = getDec(market.symbol, price);
 
-  // Run market-specific engine (primary TF full analysis)
+  // Run market-specific engine (primary TF full analysis). partnerCandles
+  // is only ever non-null for forex symbols with a defined SMT partner
+  // (currently EURUSD/GBPUSD) — the synthetic engine doesn't accept or use
+  // this parameter at all, since SMT isn't applicable to synthetics.
   const engineResult = isForex
-    ? runForexEngine(market, candles, htfCandles)
+    ? runForexEngine(market, candles, htfCandles, partnerCandles)
     : runSyntheticEngine(market, candles, htfCandles);
 
   const { bullScore, bearScore, steps } = engineResult;
@@ -139,6 +142,9 @@ export function processSignal(market, candles, htfCandles, htf2Candles, livePric
     breakout:    engineResult.breakout ?? null,
     bos:         engineResult.bos ?? null,
     choch:       engineResult.choch ?? null,
+    mss:         engineResult.mss ?? null,
+    smt:         engineResult.smt ?? null,
+    entryModels: engineResult.entryModels ?? [],
     bor:         engineResult.bor ?? null,
     zoneRetest:  engineResult.zoneRetest ?? null,
   };
