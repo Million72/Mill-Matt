@@ -6,6 +6,6 @@ export const TIMEFRAMES = {
   "1h":  { granularity: 3600,  htfGran: 14400, htf2Gran: 86400, candles: 300, label: "1h"  },
   "4h":  { granularity: 14400, htfGran: 86400, htf2Gran: 604800,candles: 300, label: "4h"  },
 };
-export const REFRESH_SECONDS = 600;
+export const REFRESH_SECONDS = 1800;
 export const BATCH_SIZE      = 3;
 export const BATCH_DELAY_MS  = 700;
