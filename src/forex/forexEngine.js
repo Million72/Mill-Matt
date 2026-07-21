@@ -18,8 +18,11 @@ import { volatilityFilter }     from "./filters/volatilityFilter.js";
 import { sessionFilter }        from "./filters/sessionFilter.js";
 import { supertrend }           from "../indicators/supertrend.js";
 import { adx }                  from "../indicators/adx.js";
+import { detectMSS }            from "../shared/smartMoney/mss.js";
+import { checkEntryModels }     from "../shared/smartMoney/entryModels.js";
+import { detectSMTDivergence }  from "../shared/smartMoney/smt.js";
 
-export function runForexEngine(market, candles, htfCandles) {
+export function runForexEngine(market, candles, htfCandles, partnerCandles = null) {
   const { symbol, isJPY, isGold } = market;
   const dec   = isGold ? 2 : isJPY ? 3 : 5;
   const price = candles[candles.length - 1].close;
@@ -51,8 +54,33 @@ export function runForexEngine(market, candles, htfCandles) {
   if (bos)   add("BOS",   { side: bos.side,   label: bos.label,   weight: 3 });
   if (choch) add("CHoCH", { side: choch.side, label: choch.label, weight: 3 });
 
-  // ── STEP 3: Liquidity Sweep ──────────────────────────────────
+  // Liquidity Sweep — computed here (ahead of its original STEP 3 position)
+  // because entry-model checking below needs it. The `add()` call for it
+  // stays where it conceptually belongs (STEP 3, further down) so scoring
+  // order/weights are unaffected — only the raw detection moved earlier.
   const sweep = liquiditySweep(candles, dec);
+
+  // MSS is the ICT/SMC name for the same reversal signal CHoCH already
+  // detects (see shared/smartMoney/mss.js) — computed here so entry models
+  // below can reference it under its standard terminology.
+  const mss = detectMSS(candles, ms, detectCHoCH);
+
+  // SMT Divergence — only meaningful when a correlated partner instrument's
+  // candles were actually supplied (currently EURUSD/GBPUSD only; every
+  // other forex pair gets partnerCandles = null and simply skips this).
+  const smt = partnerCandles ? detectSMTDivergence(candles, partnerCandles) : null;
+  if (smt) add("SMT Divergence", { side: smt.side, label: smt.label, weight: 3 });
+
+  // ── Entry Models — any ONE of 5 specific ICT combos qualifies ────
+  // This sits alongside the scoring above, not instead of it: matching a
+  // model adds meaningful weight (since it represents multiple confirming
+  // concepts firing together), and is also surfaced as its own labeled
+  // factor so it's visible on the signal card, distinct from the raw
+  // component pieces (sweep/MSS/FVG etc.) that are already scored individually.
+  const entryModelMatches = checkEntryModels(candles, sweep, mss, smt);
+  entryModelMatches.forEach(m => add("Entry Model", { side: m.side, label: m.label, weight: 4 }));
+
+  // ── STEP 3: Liquidity Sweep ──────────────────────────────────
   if (sweep) add("Liquidity Sweep", { side: sweep.side, label: sweep.label, weight: 3 });
 
   // ── STEP 4: Support / Resistance ─────────────────────────────
@@ -134,6 +162,9 @@ export function runForexEngine(market, candles, htfCandles) {
     sweep,
     bos,
     choch,
+    mss,
+    smt,
+    entryModels: entryModelMatches,
     breakout,
     retest,
     ST,
@@ -143,4 +174,4 @@ export function runForexEngine(market, candles, htfCandles) {
     dec,
     price,
   };
-    }
+}
