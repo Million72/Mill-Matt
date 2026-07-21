@@ -18,6 +18,14 @@ import { detectBOS }          from "./priceAction/bos.js";
 import { detectCHoCH }        from "./priceAction/choch.js";
 import { detectBOR }          from "./priceAction/breakOfRange.js";
 import { detectZoneRetest }   from "./priceAction/fvgOrderBlock.js";
+import { detectMSS }          from "../shared/smartMoney/mss.js";
+import { checkEntryModels }   from "../shared/smartMoney/entryModels.js";
+// NOTE: SMT Divergence is intentionally NOT imported here — it requires a
+// correlated second instrument, which doesn't meaningfully exist for
+// synthetic indices (each is an independent random process with no real
+// cross-correlation to compare). Entry models 3 and 4 (which require SMT)
+// will therefore never fire for synthetics — that's an honest limitation
+// of the underlying instruments, not a missing feature.
 
 // Lightweight ATR estimate used only to decide whether BOS and Breakout are
 // reporting the same underlying price event (see STEP 11 below). Not the
@@ -92,6 +100,16 @@ export function runSyntheticEngine(market, candles, htfCandles) {
   // ── STEP 7: CHoCH (reversal) ─────────────────────────────────
   const choch = detectCHoCH(candles, structure);
   if (choch) add("CHoCH", { side: choch.side, label: choch.label, weight: 3 });
+
+  // MSS — ICT/SMC name for the same reversal signal CHoCH already detects.
+  const mss = detectMSS(candles, structure, detectCHoCH);
+
+  // ── Entry Models — any ONE of 5 specific ICT combos qualifies ────
+  // No SMT for synthetics (see import note above), so models 3/4 simply
+  // never match here — models 1, 2, and 5 (sweep/MSS-based) remain fully
+  // available. Same weighting/labeling approach as the forex engine.
+  const entryModelMatches = checkEntryModels(candles, sweep, mss, null);
+  entryModelMatches.forEach(m => add("Entry Model", { side: m.side, label: m.label, weight: 4 }));
 
   // ── STEP 8: BOR — Break of Range ─────────────────────────────
   const bor = detectBOR(candles, dec);
@@ -175,6 +193,8 @@ export function runSyntheticEngine(market, candles, htfCandles) {
     sweep,
     bos,
     choch,
+    mss,
+    entryModels: entryModelMatches,
     bor,
     zoneRetest,
     sr,
@@ -184,4 +204,4 @@ export function runSyntheticEngine(market, candles, htfCandles) {
     dec,
     price,
   };
-}
+      }
