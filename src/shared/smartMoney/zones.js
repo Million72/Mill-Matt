@@ -145,4 +145,38 @@ export function isZoneRelevant(candles, zone, maxAtrMultiple = 3) {
   const distance = Math.abs(last.close - zoneMid);
 
   return inZone && distance <= maxDist;
+}
+
+// ── Mitigation Block ──────────────────────────────────────────────
+// Distinct from an Order Block: an Order Block is the last OPPOSING candle
+// immediately before a strong impulsive move (a "smart money entry" zone).
+// A Mitigation Block is the last candle in the SAME direction as an
+// impulsive move, right before that move reverses — representing a
+// position that was likely entered late/poorly and is now "mitigated"
+// (closed near breakeven) when price returns to it. In practice: after a
+// strong up-move that then reverses down, the last bullish candle before
+// the reversal is a bullish Mitigation Block; price returning to that
+// candle's range is expected to find selling interest from traders exiting
+// at breakeven, making it a bearish reaction zone (side is the reversal
+// direction, not the original move's direction).
+export function detectMitigationBlocks(candles) {
+  const zones = [];
+  for (let i = 2; i < candles.length - 1; i++) {
+    const preImpulse = candles[i - 1];
+    const impulse    = candles[i];
+    const next       = candles[i + 1];
+
+    // Bullish move (preImpulse + impulse both bullish, impulse is strong)
+    // that then reverses on `next` — preImpulse becomes a Mitigation Block,
+    // expected to act as resistance (bearish reaction) on retest.
+    if (isBull(preImpulse) && isBull(impulse) && body(impulse) > body(preImpulse) * 1.3 && isBear(next)) {
+      zones.push({ type: "MitigationBlock", side: "bear", top: preImpulse.high, bottom: preImpulse.low, index: i - 1 });
     }
+    // Mirror case: bearish move that reverses — preImpulse becomes a
+    // bullish-reaction Mitigation Block (expected support on retest).
+    if (isBear(preImpulse) && isBear(impulse) && body(impulse) > body(preImpulse) * 1.3 && isBull(next)) {
+      zones.push({ type: "MitigationBlock", side: "bull", top: preImpulse.high, bottom: preImpulse.low, index: i - 1 });
+    }
+  }
+  return zones;
+}
