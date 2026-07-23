@@ -174,4 +174,4 @@ export function runForexEngine(market, candles, htfCandles, partnerCandles = nul
     dec,
     price,
   };
-    }
+}
