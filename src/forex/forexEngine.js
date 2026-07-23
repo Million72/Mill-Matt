@@ -77,8 +77,8 @@ export function runForexEngine(market, candles, htfCandles, partnerCandles = nul
   // concepts firing together), and is also surfaced as its own labeled
   // factor so it's visible on the signal card, distinct from the raw
   // component pieces (sweep/MSS/FVG etc.) that are already scored individually.
-  const entryModelMatches = checkEntryModels(candles, sweep, mss, smt);
-  entryModelMatches.forEach(m => add("Entry Model", { side: m.side, label: m.label, weight: 4 }));
+  const entryModelMatches = checkEntryModels(candles, sweep, mss, smt, ms);
+  entryModelMatches.forEach(m => add("Entry Model", { side: m.side, label: m.label, weight: m.weight }));
 
   // ── STEP 3: Liquidity Sweep ──────────────────────────────────
   if (sweep) add("Liquidity Sweep", { side: sweep.side, label: sweep.label, weight: 3 });
@@ -174,4 +174,4 @@ export function runForexEngine(market, candles, htfCandles, partnerCandles = nul
     dec,
     price,
   };
-}
+    }
