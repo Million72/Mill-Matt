@@ -42,7 +42,7 @@ function atrEstimate(candles, period = 14) {
   return sum / (slice.length - 1);
 }
 
-export function runSyntheticEngine(market, candles, htfCandles) {
+export function runSyntheticEngine(market, candles, htfCandles, htf2Bias = "NEUTRAL") {
   const { symbol } = market;
   const price   = candles[candles.length - 1].close;
   const dec     = price > 999 ? 2 : 3;
@@ -108,7 +108,7 @@ export function runSyntheticEngine(market, candles, htfCandles) {
   // No SMT for synthetics (see import note above), so models 3/4 simply
   // never match here — models 1, 2, and 5 (sweep/MSS-based) remain fully
   // available. Same weighting/labeling approach as the forex engine.
-  const entryModelMatches = checkEntryModels(candles, sweep, mss, null, structure);
+  const entryModelMatches = checkEntryModels(candles, sweep, mss, null, structure, htf2Bias);
   entryModelMatches.forEach(m => add("Entry Model", { side: m.side, label: m.label, weight: m.weight }));
 
   // ── STEP 8: BOR — Break of Range ─────────────────────────────
@@ -204,4 +204,4 @@ export function runSyntheticEngine(market, candles, htfCandles) {
     dec,
     price,
   };
-}
+  }
