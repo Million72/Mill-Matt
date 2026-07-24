@@ -27,19 +27,25 @@ export function processSignal(market, candles, htfCandles, htf2Candles, livePric
   const price   = livePrice ?? candles[candles.length - 1].close;
   const dec     = getDec(market.symbol, price);
 
-  // Run market-specific engine (primary TF full analysis). partnerCandles
+  // htf2Bias (the true HIGHEST timeframe) is computed BEFORE the engine
+  // runs, since entry-model scanning inside the engine needs it as a hard
+  // bias gate — per the HTF→MTF→LTF cascade: entry models are only scanned
+  // for the side matching the highest timeframe's bias, so this can't be
+  // computed after the fact the way it used to be.
+  const htf2Bias = biasFromCandles(htf2Candles);
+
+  // Run market-specific engine (primary/LTF TF full analysis). partnerCandles
   // is only ever non-null for forex symbols with a defined SMT partner
   // (currently EURUSD/GBPUSD) — the synthetic engine doesn't accept or use
   // this parameter at all, since SMT isn't applicable to synthetics.
   const engineResult = isForex
-    ? runForexEngine(market, candles, htfCandles, partnerCandles)
-    : runSyntheticEngine(market, candles, htfCandles);
+    ? runForexEngine(market, candles, htfCandles, partnerCandles, htf2Bias)
+    : runSyntheticEngine(market, candles, htfCandles, htf2Bias);
 
   const { bullScore, bearScore, steps } = engineResult;
 
   // ── 3-Timeframe confirmation ──────────────────────────────────
   const htf1Bias = biasFromCandles(htfCandles);
-  const htf2Bias = biasFromCandles(htf2Candles);
 
   const mtfAgrees = (side) => {
     // side: "bull" or "bear"
@@ -148,4 +154,4 @@ export function processSignal(market, candles, htfCandles, htf2Candles, livePric
     bor:         engineResult.bor ?? null,
     zoneRetest:  engineResult.zoneRetest ?? null,
   };
-    }
+      }
