@@ -22,7 +22,7 @@ import { detectMSS }            from "../shared/smartMoney/mss.js";
 import { checkEntryModels }     from "../shared/smartMoney/entryModels.js";
 import { detectSMTDivergence }  from "../shared/smartMoney/smt.js";
 
-export function runForexEngine(market, candles, htfCandles, partnerCandles = null) {
+export function runForexEngine(market, candles, htfCandles, partnerCandles = null, htf2Bias = "NEUTRAL") {
   const { symbol, isJPY, isGold } = market;
   const dec   = isGold ? 2 : isJPY ? 3 : 5;
   const price = candles[candles.length - 1].close;
@@ -77,7 +77,7 @@ export function runForexEngine(market, candles, htfCandles, partnerCandles = nul
   // concepts firing together), and is also surfaced as its own labeled
   // factor so it's visible on the signal card, distinct from the raw
   // component pieces (sweep/MSS/FVG etc.) that are already scored individually.
-  const entryModelMatches = checkEntryModels(candles, sweep, mss, smt, ms);
+  const entryModelMatches = checkEntryModels(candles, sweep, mss, smt, ms, htf2Bias);
   entryModelMatches.forEach(m => add("Entry Model", { side: m.side, label: m.label, weight: m.weight }));
 
   // ── STEP 3: Liquidity Sweep ──────────────────────────────────
