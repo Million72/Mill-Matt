@@ -20,6 +20,10 @@ import { detectBOR }          from "./priceAction/breakOfRange.js";
 import { detectZoneRetest }   from "./priceAction/fvgOrderBlock.js";
 import { detectMSS }          from "../shared/smartMoney/mss.js";
 import { checkEntryModels }   from "../shared/smartMoney/entryModels.js";
+import { detectMomentumShift } from "./analysis/momentumShift.js";
+import { forecastVolatility }  from "./analysis/volatilityForecast.js";
+import { analyzeRange }        from "./analysis/rangeAnalysis.js";
+import { analyzeTrendConsistency } from "./analysis/trendConsistency.js";
 // NOTE: SMT Divergence is intentionally NOT imported here — it requires a
 // correlated second instrument, which doesn't meaningfully exist for
 // synthetic indices (each is an independent random process with no real
@@ -164,6 +168,52 @@ export function runSyntheticEngine(market, candles, htfCandles, htf2Bias = "NEUT
     weight: 2,
   });
 
+  // ── STEP 14b: Momentum Shift ─────────────────────────────────
+  // Warns AGAINST the current move's direction if momentum is decelerating
+  // — this directly targets signals that fire then immediately reverse, by
+  // penalizing the side the shift warns against rather than the side it's
+  // "for" (there is no side it's for; it's purely a deceleration warning).
+  const momentumShift = detectMomentumShift(candles);
+  if (momentumShift.warning) {
+    add("Momentum Shift", { side: momentumShift.side, label: momentumShift.label, weight: 2 });
+  }
+
+  // ── STEP 14c: Volatility Forecast ────────────────────────────
+  // If the most recent candle is a statistical outlier, treat it as likely
+  // to mean-revert rather than trusting it as genuine trend continuation.
+  // This is a symmetric penalty (applied against whichever side is
+  // currently leading), matching the same pattern used for the ADX/
+  // volatility penalties already in the forex engine.
+  const volForecast = forecastVolatility(candles);
+  if (volForecast.isOutlier) {
+    const penalty = 2;
+    if (flags.bull > flags.bear) flags.bull = Math.max(0, flags.bull - penalty);
+    else if (flags.bear > flags.bull) flags.bear = Math.max(0, flags.bear - penalty);
+    steps.push({ step: "Volatility Forecast", side: "neutral", label: volForecast.label, weight: -penalty });
+  }
+
+  // ── STEP 14d: Range Analysis ──────────────────────────────────
+  // If price sits mid-range in a tight consolidation, that's a structurally
+  // weak place for a fresh directional move to begin — apply the same
+  // symmetric penalty pattern.
+  const rangeInfo = analyzeRange(candles);
+  if (rangeInfo.weakByPosition) {
+    const penalty = 2;
+    if (flags.bull > flags.bear) flags.bull = Math.max(0, flags.bull - penalty);
+    else if (flags.bear > flags.bull) flags.bear = Math.max(0, flags.bear - penalty);
+    steps.push({ step: "Range Analysis", side: "neutral", label: rangeInfo.label, weight: -penalty });
+  }
+
+  // ── STEP 14e: Trend Consistency ───────────────────────────────
+  // Rewards genuinely consistent recent price action (not just ADX-implied
+  // trend strength, which can be fooled by one big candle amid choppy
+  // smaller ones — see trendConsistency.js for why this is distinct from
+  // the existing ADX-based "Trend Strength" step above).
+  const consistency = analyzeTrendConsistency(candles);
+  if (consistency.consistent) {
+    add("Trend Consistency", { side: consistency.side, label: consistency.label, weight: 2 });
+  }
+
   // ── STEP 15: Confirmation Candle ──────────────────────────────
   const cp = candlestickPatterns(candles);
   cp.forEach(p => add("Candlestick", { side: p.side, label: `PA: ${p.name}`, weight: p.strength }));
@@ -196,6 +246,10 @@ export function runSyntheticEngine(market, candles, htfCandles, htf2Bias = "NEUT
     mss,
     entryModels: entryModelMatches,
     bor,
+    momentumShift,
+    volForecast,
+    rangeInfo,
+    consistency,
     zoneRetest,
     sr,
     breakout,
@@ -204,4 +258,4 @@ export function runSyntheticEngine(market, candles, htfCandles, htf2Bias = "NEUT
     dec,
     price,
   };
-  }
+      }
