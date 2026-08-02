@@ -1,5 +1,5 @@
 import { runForexEngine }     from "../forex/forexEngine.js";
-import { runSyntheticEngine } from "../synthetic/syntheticEngine.js";
+import { runSyntheticEngineV3 } from "../synthetic/syntheticEngineV3.js";
 import { validateSignal }     from "../shared/signalValidator.js";
 import { confidenceScore }    from "../shared/confidenceScore.js";
 import { confirmationEngine } from "../shared/confirmationEngine.js";
@@ -27,20 +27,56 @@ export function processSignal(market, candles, htfCandles, htf2Candles, livePric
   const price   = livePrice ?? candles[candles.length - 1].close;
   const dec     = getDec(market.symbol, price);
 
-  // htf2Bias (the true HIGHEST timeframe) is computed BEFORE the engine
-  // runs, since entry-model scanning inside the engine needs it as a hard
-  // bias gate — per the HTF→MTF→LTF cascade: entry models are only scanned
-  // for the side matching the highest timeframe's bias, so this can't be
-  // computed after the fact the way it used to be.
+  // ── SYNTHETIC: routed entirely through the new deliberately minimal V3
+  // engine (9 confirmed indicators, 50-EMA stop-loss, hard entry-timing
+  // gate) — does NOT go through the shared forex pipeline (entry models,
+  // 3-TF confirmation, structure/sweep/BOS-CHoCH) at all, per explicit
+  // instruction to simplify rather than keep layering complexity after
+  // real trading losses. V3 computes its own validation/confidence/SL-TP
+  // internally; here we only reshape its output to match the same final
+  // signal object shape the UI already expects.
+  if (!isForex) {
+    const v3 = runSyntheticEngineV3(market, candles, htfCandles);
+    return {
+      symbol:      market.symbol,
+      name:        market.name,
+      price:       +v3.price.toFixed(dec),
+      signal:      v3.signal,
+      confidence:  v3.confidence,
+      tp1:         v3.tp1 ?? null,
+      tp2:         v3.tp2 ?? null,
+      sl:          v3.sl ?? null,
+      rr:          v3.rr ?? null,
+      factors:     v3.factors,
+      bullScore:   v3.bullScore,
+      bearScore:   v3.bearScore,
+      MAX:         v3.maxScore,
+      timestamp:   new Date(),
+      source:      "live",
+      type:        "synthetic",
+      counterTrend: false,
+      rsi:         v3.rsi?.toFixed?.(1) ?? v3.rsi ?? "—",
+      macdDir:     v3.macdBull ? "▲" : "▼",
+      atr:         v3.atr ?? null,
+      trend:       v3.ema9 != null && v3.ema200 != null ? (v3.ema9 > v3.ema200 ? "BULLISH" : "BEARISH") : "NEUTRAL",
+      htfBias:     "NEUTRAL", // V3 doesn't use the 3-TF cascade — intentionally simplified
+      htf2Bias:    "NEUTRAL",
+      structure:   "NEUTRAL",
+      sweep: null, breakout: null, bos: null, choch: null, mss: null, smt: null,
+      entryModels: [], bor: null, zoneRetest: null,
+      blockReason: v3.blockReason ?? null,
+      estimatedRiskUsd: v3.estimatedRiskUsd ?? null,
+      vwap: v3.vwap ?? null,
+      ema50: v3.ema50 ?? null,
+    };
+  }
+
+  // ── FOREX: unchanged — full pipeline (entry models, 3-TF cascade,
+  // structure/sweep/BOS-CHoCH, multi-candle confirmation) stays exactly as
+  // it was. Only synthetics were simplified.
   const htf2Bias = biasFromCandles(htf2Candles);
 
-  // Run market-specific engine (primary/LTF TF full analysis). partnerCandles
-  // is only ever non-null for forex symbols with a defined SMT partner
-  // (currently EURUSD/GBPUSD) — the synthetic engine doesn't accept or use
-  // this parameter at all, since SMT isn't applicable to synthetics.
-  const engineResult = isForex
-    ? runForexEngine(market, candles, htfCandles, partnerCandles, htf2Bias)
-    : runSyntheticEngine(market, candles, htfCandles, htf2Bias);
+  const engineResult = runForexEngine(market, candles, htfCandles, partnerCandles, htf2Bias);
 
   const { bullScore, bearScore, steps } = engineResult;
 
@@ -109,8 +145,9 @@ export function processSignal(market, candles, htfCandles, htf2Candles, livePric
 
   const rr = levels.tp1 && levels.sl ? calcRR(price, levels.tp1, levels.sl) : null;
 
-  // Counter-trend flag (for forex — primary trend vs final signal)
-  if (isForex && engineResult.trend?.bias) {
+  // Counter-trend flag — this entire function body past the early synthetic
+  // return only ever executes for forex now, so no isForex check needed here.
+  if (engineResult.trend?.bias) {
     counterTrend = (engineResult.trend.bias === "BULLISH" && signal === "SELL") ||
                    (engineResult.trend.bias === "BEARISH" && signal === "BUY");
   }
@@ -135,7 +172,7 @@ export function processSignal(market, candles, htfCandles, htf2Candles, livePric
     MAX:         30,
     timestamp:   new Date(),
     source:      "live",
-    type:        isForex ? "forex" : "synthetic",
+    type:        "forex",
     counterTrend,
     rsi:         RSI?.toFixed(1) ?? "—",
     macdDir:     engineResult.momentum?.MACD?.histogram > 0 ? "▲" : "▼",
@@ -154,4 +191,4 @@ export function processSignal(market, candles, htfCandles, htf2Candles, livePric
     bor:         engineResult.bor ?? null,
     zoneRetest:  engineResult.zoneRetest ?? null,
   };
-      }
+        }
