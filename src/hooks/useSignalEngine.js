@@ -3,7 +3,6 @@ import { processSignal }                 from "../engine/signalManager.js";
 import { FOREX, SYNTHETICS }             from "../constants/markets.js";
 import { BATCH_SIZE, BATCH_DELAY_MS, REFRESH_SECONDS } from "../constants/timeframes.js";
 import { delay }                         from "../utils/helpers.js";
-import { getSMTPartner }                 from "../shared/smartMoney/smt.js";
 
 // Anti-repainting: once a BUY/SELL signal fires on a specific closed candle,
 // it is recorded here permanently, keyed by symbol+timeframe+candle time.
@@ -47,24 +46,12 @@ export function useSignalEngine() {
           const data = await fetchMarket(market, tfRef.current);
           if (!data) { results[market.symbol] = { symbol: market.symbol, error: "Fetch failed" }; errs++; return; }
 
-          // SMT Divergence needs a second, correlated instrument's candles.
-          // Only EURUSD/GBPUSD currently have a defined partner (see
-          // shared/smartMoney/smt.js) — every other market simply gets
-          // partnerCandles = null and entry models 3/4 don't apply to it.
-          // We reuse fetchMarket for the partner too, so it benefits from
-          // the exact same caching/anti-repainting fetch path — no
-          // separate, inconsistent data source for this one lookup.
-          let partnerCandles = null;
-          const partnerSymbol = getSMTPartner(market.symbol);
-          if (partnerSymbol) {
-            const partnerMarket = FOREX.find(f => f.symbol === partnerSymbol);
-            if (partnerMarket) {
-              const partnerData = await fetchMarket(partnerMarket, tfRef.current);
-              if (partnerData) partnerCandles = partnerData.candles;
-            }
-          }
-
-          const sig = processSignal(market, data.candles, data.htfCandles, data.htf2Candles, data.livePrice, partnerCandles);
+          // SMT partner-fetching removed: synthetics now route entirely
+          // through syntheticEngineV3 (9-indicator minimal engine, no
+          // SMT/entry-models), and forex's SMT logic fetches its own
+          // partner candles internally via signalManager.js's own path —
+          // no longer needed at this generic scan-loop level.
+          const sig = processSignal(market, data.candles, data.htfCandles, data.htf2Candles, data.livePrice, null);
 
           // The last candle in `data.candles` is now guaranteed CLOSED
           // (deriv.js strips the forming one) — so it's a stable, fixed
@@ -109,4 +96,4 @@ export function useSignalEngine() {
   }, []);
 
   return { signals, scanning, lastScan, countdown, setCountdown, countRef, stats, errCount, liveCount, scanAll, tfRef, getLockedHistory };
-                }
+}
