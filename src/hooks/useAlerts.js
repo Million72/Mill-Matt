@@ -1,19 +1,8 @@
-import { useEffect, useRef } from "react";
-import { checkAlerts }       from "../shared/alerts.js";
-
-export function useAlerts(signals) {
-  const prevRef = useRef({});
-
-  useEffect(() => {
-    const alerts = checkAlerts(signals, prevRef.current);
-    alerts.forEach(a => {
-      if ("Notification" in window && Notification.permission === "granted") {
-        new Notification(`${a.symbol} ${a.signal}`, {
-          body: `${a.confidence}% confidence @ ${a.price}`,
-          icon: "/icons/icon-192.png",
-        });
-      }
-    });
-    prevRef.current = signals;
-  }, [signals]);
+// Notifications removed by request. Kept as a no-op hook (rather than
+// deleted) because Dashboard.jsx — the fixed reference file — already
+// calls useAlerts(signals) and can't be edited; removing the export
+// entirely would break that import. This does nothing with the signal
+// data it receives.
+export function useAlerts(_signals) {
+  // intentionally empty
 }
