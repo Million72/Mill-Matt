@@ -1,12 +1,14 @@
-export function checkAlerts(signals, prevSignals) {
-  const alerts = [];
-  Object.values(signals).forEach(sig => {
-    if (!sig || sig.error) return;
-    const prev = prevSignals?.[sig.symbol];
-    // New signal fired
-    if (sig.signal !== "WAIT" && (!prev || prev.signal === "WAIT")) {
-      alerts.push({ symbol: sig.symbol, signal: sig.signal, confidence: sig.confidence, price: sig.price });
-    }
-  });
-  return alerts;
+// Pure alert-message building. Not currently called anywhere — notification
+// sending was removed from hooks/useAlerts.js by request (it crashed on
+// Android Chrome, which doesn't support the raw Notification constructor;
+// see that file's history). Kept here, matching the required project
+// structure, as a ready-to-use message formatter if notifications are
+// re-enabled later via a proper ServiceWorkerRegistration.showNotification()
+// path instead of the constructor that crashed.
+export function buildAlertMessage(signal) {
+  const title = `${signal.signal} · ${signal.name}`;
+  const price = signal.price >= 1000 ? signal.price.toFixed(2) : signal.price.toFixed(4);
+  const body = `${price} · confidence ${signal.confidence}% · ${signal.tier}`;
+  const key = `${signal.symbol}_${signal.signal}_${signal.time}`;
+  return { title, body, key };
 }
